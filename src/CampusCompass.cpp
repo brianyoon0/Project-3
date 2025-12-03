@@ -47,9 +47,9 @@ string Graph::getEdgeStatus(int u, int v) const {
     for (const auto &e : it->second) {
         if (e.to == v) {
             if (e.open) {
-                return "Open";
+                return "open";
             } else {
-                return "Closed";
+                return "closed";
             }
         }
     }
@@ -261,6 +261,14 @@ bool CampusCompass::ParseCommand(const string &command) {
         return handleDropClass(command);
     } else if (cmdWord == "replaceClass") {
         return handleReplaceClass(command);
+    } else if (cmdWord == "toggleEdgesClosure") {
+        return handleToggleEdgesClosure(command);
+    } else if (cmdWord == "checkEdgeStatus") {
+        return handleCheckEdgeStatus(command);
+    } else if (cmdWord == "isConnected") {
+        return handleIsConnected(command);
+    } else if (cmdWord == "printShortestEdges") {
+        return handlePrintShortestEdges(command);
     }
 
     cout << "unsuccessful" << endl;
@@ -506,5 +514,125 @@ bool CampusCompass::handleReplaceClass(const string &line) {
     }
     * posOld = newCode;
     cout << "successful" << endl;
+    return true;
+}
+
+bool CampusCompass::handleToggleEdgesClosure(const string &line) {
+    string cmd;
+    int N;
+    stringstream ss(line);
+    ss >> cmd >> N;
+    if (!ss || N <= 0) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    vector<int> ids;
+    int id;
+
+    while (ss >> id) {
+        ids.push_back(id);
+    }
+
+    if (static_cast<int>(ids.size()) != 2* N) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    //toggle each edge
+    for (int i = 0; i < 2* N; i += 2) {
+        int u = ids[i];
+        int v = ids[i + 1];
+        graph.toggleEdge(u,v);
+    }
+    cout << "successful" << endl;
+    return true;
+}
+
+bool CampusCompass::handleCheckEdgeStatus(const string &line) {
+    string cmd;
+    int x, y;
+    stringstream ss(line);
+    ss >> cmd >> x >> y;
+
+    if (!ss) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    string status = graph.getEdgeStatus(x, y);
+
+    cout << status << endl;
+    return true;
+}
+
+bool CampusCompass::handleIsConnected(const string &line) {
+
+    string cmd;
+    int start, goal;
+    stringstream ss(line);
+    ss >> cmd >> start >> goal;
+
+    if (!ss) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    bool ok = graph.isConnected(start, goal);
+
+    if (ok) {
+        cout << "successful" << endl;
+    } else {
+        cout << "unsuccessful" << endl;
+    }
+    return ok;
+}
+
+bool CampusCompass::handlePrintShortestEdges(const string &line) {
+    string cmd, ufid;
+    stringstream ss(line);
+    ss >> cmd >> ufid;
+
+    if (!ss || ufid.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (!isValidUFID(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    Student &s = it->second;
+
+    //dijkstra
+    int startLocation = s.residenceLocation;
+    unordered_map<int, int> dist = graph.dijkstra(startLocation);
+
+    vector<pair<string, int>> results;
+
+    for (const string &code : s.classCodes) {
+        auto classIt = classesByCode.find(code);
+        if (classIt == classesByCode.end()) {
+            results.push_back({code, -1});
+            continue;
+        }
+
+        int loc = classIt->second.locationId;
+
+        int time = -1;
+        auto dIt = dist.find(loc);
+        if (dIt != dist.end() && dIt->second != INF) {
+            time = dIt->second;
+        } else {
+            time = -1;
+        }
+        results.push_back({code, time});
+    }
+    sort(results.begin(), results.end());
+
+    cout << "Name: " << s.name << '\n';
+    for (const auto &p : results) {
+        cout << p.first << " | Total Time: " << p.second << '\n';
+    }
     return true;
 }

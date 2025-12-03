@@ -61,6 +61,10 @@ private:
     bool handleRemoveClass(const string &line);
     bool handleDropClass(const string &line);
     bool handleReplaceClass(const string &line);
+    bool handleToggleEdgesClosure(const string &line);
+    bool handleCheckEdgeStatus(const string &line);
+    bool handleIsConnected(const string &line);
+    bool handlePrintShortestEdges(const string &line);
 public:
     // Think about what helper functions you will need in the algorithm
     CampusCompass(); // constructor
