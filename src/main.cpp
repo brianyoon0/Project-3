@@ -5,22 +5,23 @@
 using namespace std;
 
 int main() {
-    // initialize your main project object
     CampusCompass compass;
+    compass.ParseCSV("data/edges.csv", "data/classes.csv");
 
-    // ingest CSV data
-    compass.ParseCSV("../data/edges.csv", "../data/classes.csv");
+    string line;
+    getline(cin, line);
+    int no_of_lines = 0;
+    try {
+        no_of_lines = stoi(line);
+    } catch (const exception& e) {
+        return 0;
+    }
 
-    // the below is example code for parsing commandline input
-    int no_of_lines;
-    string command;
-    cin >> no_of_lines;
-    cin.ignore(); // ignore newline that first cin left over
     for (int i = 0; i < no_of_lines; i++) {
-        getline(cin, command);
-
-        // parse your commands however you see fit
-        compass.ParseCommand(command);
+        getline(cin, line);
+        if (!line.empty()) {
+            compass.ParseCommand(line);
+        }
     }
     return 0;
 }

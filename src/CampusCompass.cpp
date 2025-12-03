@@ -13,6 +13,14 @@ using namespace std;
 
 static const int INF = numeric_limits<int>::max();
 
+//helper function to trim
+static string trim(const string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r\f\v");
+    if (first == string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\n\r\f\v");
+    return str.substr(first, (last - first + 1));
+}
+
 void Graph::addEdge(int u, int v, int time) {
     adj[u].push_back({v, time, true});
     adj[v].push_back({u,time, true});
@@ -24,6 +32,7 @@ void Graph::toggleEdge(int u, int v) {
         for (auto &e : adj.at(u)) {
             if (e.to == v) {
                 e.open = !e.open;
+                break;
             }
         }
     }
@@ -32,6 +41,7 @@ void Graph::toggleEdge(int u, int v) {
         for (auto &e : adj.at(v)) {
             if (e.to == u) {
                 e.open = !e.open;
+                break;
             }
         }
     }
@@ -124,17 +134,110 @@ unordered_map<int, int> Graph::dijkstra(int src) const {
     return dist;
 }
 
+unordered_map<int, int> Graph::dijkstraWithParents(
+    int src, unordered_map<int, int> &parent) const {
+    unordered_map<int, int> dist;
+
+    for (const auto &p : adj) {
+        dist[p.first] = INF;
+    }
+    if (!adj.count(src)) {
+        return dist;
+    }
+    dist[src] = 0;
+    parent.clear();
+    parent[src] = -1; // root has no parent
+
+    using NodePair = pair<int, int>;
+    priority_queue<NodePair, vector<NodePair>, greater<NodePair>> pq;
+    pq.push({0, src});
+    while (!pq.empty()) {
+        auto [d, u] = pq.top();
+        pq.pop();
+        if (d > dist[u]) continue;
+
+        auto it = adj.find(u);
+        if (it == adj.end()) continue;
+
+        for (const auto &e : it->second) {
+            if (!e.open) continue;
+            int v = e.to;
+            int w = e.time;
+
+            if (dist[u] != INF && dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                parent[v] = u;
+                pq.push({dist[v], v});
+            }
+        }
+    }
+    return dist;
+}
+
+int Graph::mstCostOnNodes(const unordered_set<int> &nodes) const {
+    if (nodes.empty()) {
+        return 0;
+    }
+    //prim's algorithm on the subgraph
+    unordered_set<int> visited;
+    int totalCost = 0;
+
+    //start from any node in the set
+    int start = *nodes.begin();
+    visited.insert(start);
+
+    using EdgePair = pair<int, int>;
+    priority_queue<EdgePair, vector<EdgePair>, greater<EdgePair>> pq;
+
+    //helper lambda to push edges from the given node
+    auto pushEdges = [&](int u) {
+        auto it = adj.find(u);
+        if (it == adj.end()) return;
+        for (const auto &e : it->second) {
+            if (!e.open) continue;
+            int v = e.to;
+            if (!nodes.count(v)) continue;
+            if (visited.count(v)) continue;
+            pq.push({e.time, v});
+        }
+    };
+    pushEdges(start);
+    while (!pq.empty() && visited.size() < nodes.size()) {
+        auto [w, v] = pq.top();
+        pq.pop();
+        if (visited.count(v)) continue;
+        visited.insert(v);
+        totalCost += w;
+        pushEdges(v);
+    }
+    if (visited.size() != nodes.size()) {
+        return -1;
+    }
+    return totalCost;
+}
+
+
+
+
+
+
+
 CampusCompass::CampusCompass() = default;
 
 int CampusCompass::parseTimetoMinutes(const string &timeStr) const {
     if (timeStr.empty()) return -1;
 
+    string trimmed = trim(timeStr);
+    if (trimmed.empty()) return -1;
     int h = 0;
     int m = 0;
     char colon;
-    stringstream ss(timeStr);
+    stringstream ss(trimmed);
     ss >> h >> colon >> m;
     if (!ss || colon !=':') {
+        return -1;
+    }
+    if (h <  0 || h > 23 || m < 0 || m > 59) {
         return -1;
     }
     return h * 60 + m;
@@ -158,14 +261,20 @@ bool CampusCompass::loadEdges(const string &edges_filepath) {
 
         if (!getline(ss, sId1, ',')) continue;
         if (!getline(ss, sId2, ',')) continue;
-        if (!getline(ss, name1, ',')) continue;
-        if (!getline(ss, name2, ',')) continue;
+
+        getline(ss, name1, ',');
+        getline(ss, name2, ',');
         if (!getline(ss, sTime, ',')) continue;
+
+        sId1 = trim(sId1);
+        sId2 = trim(sId2);
+        sTime = trim(sTime);
+
+        if (sId1.empty() || sId2.empty() || sTime.empty())continue;
 
         int id1 = stoi(sId1);
         int id2 = stoi(sId2);
         int t = stoi(sTime);
-
         graph.addEdge(id1, id2, t);
     }
     return true;
@@ -178,11 +287,10 @@ bool CampusCompass::loadClasses(const string &classes_filepath) {
         return false;
     }
     string line;
-    if (!getline(in, line)) {
-        return false;
-    }
+    getline(in, line);
     while (getline(in, line)) {
         if (line.empty()) continue;
+
 
         stringstream ss(line);
         string code, sLoc, sStart, sEnd;
@@ -190,14 +298,31 @@ bool CampusCompass::loadClasses(const string &classes_filepath) {
         if (!getline(ss, code, ',')) continue;
         if (!getline(ss, sLoc, ',')) continue;
         if (!getline(ss, sStart, ',')) continue;
-        if (!getline(ss, sEnd, ',')) continue;
+        getline(ss, sEnd, ',');
+
+        code = trim(code);
+        sLoc = trim(sLoc);
+        sStart = trim(sStart);
+        sEnd = trim(sEnd);
+
+        if (code.empty() || sLoc.empty() || sStart.empty() || sEnd.empty()) continue;
 
         ClassInfo info;
-        info.locationId = stoi(sLoc);
-        info.startMinutes = parseTimetoMinutes(sStart);
-        info.endMinutes = parseTimetoMinutes(sEnd);
+        try {
+            info.locationId = stoi(sLoc);
+            info.startMinutes = parseTimetoMinutes(sStart);
+            info.endMinutes = parseTimetoMinutes(sEnd);
+
+            // Validate times
+            if (info.startMinutes == -1 || info.endMinutes == -1 || info.startMinutes >= info.endMinutes) {
+                continue; // Skip invalid time entries
+            }
 
         classesByCode[code] = info;
+        } catch (const exception& e) {
+            cerr << "Error parsing line: " << line << endl;
+            continue;
+        }
     }
     return true;
 }
@@ -228,7 +353,7 @@ bool CampusCompass::isValidName(const string &name) const {
 bool CampusCompass::isValidClassCode(const string &code) const {
     if (code.size() != 7) return false;
     for (int i = 0 ; i < 3; i++) {
-        if (!(code[i] >= 'A' && code[i] <= 'Z')) return false;
+        if (!isalpha(static_cast<unsigned char>(code[i])) || !isupper(code[i])) return false;
     }
     for (int i = 3; i < 7; i++) {
         if (!isdigit(static_cast<unsigned char>(code[i]))) return false;
@@ -238,37 +363,42 @@ bool CampusCompass::isValidClassCode(const string &code) const {
 
 
 bool CampusCompass::ParseCommand(const string &command) {
-    if (command.empty()) {
-        cout << "unsuccessful" << endl;
+    string trimmedCmd = trim(command);
+    if (trimmedCmd.empty()) {
+        cout << "unsuccessful\n";
         return false;
     }
 
     string cmdWord;
-    stringstream ss(command);
+    stringstream ss(trimmedCmd);
     ss >> cmdWord;
 
     if (!ss) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful\n";
         return false;
     }
     if (cmdWord == "insert") {
-        return handleInsert(command);
+        return handleInsert(trimmedCmd);
     } else if (cmdWord == "remove") {
-        return handleRemove(command);
+        return handleRemove(trimmedCmd);
     } else if (cmdWord == "removeClass") {
-        return handleRemoveClass(command);
+        return handleRemoveClass(trimmedCmd);
     } else if (cmdWord == "dropClass") {
-        return handleDropClass(command);
+        return handleDropClass(trimmedCmd);
     } else if (cmdWord == "replaceClass") {
-        return handleReplaceClass(command);
+        return handleReplaceClass(trimmedCmd);
     } else if (cmdWord == "toggleEdgesClosure") {
-        return handleToggleEdgesClosure(command);
+        return handleToggleEdgesClosure(trimmedCmd);
     } else if (cmdWord == "checkEdgeStatus") {
-        return handleCheckEdgeStatus(command);
+        return handleCheckEdgeStatus(trimmedCmd);
     } else if (cmdWord == "isConnected") {
-        return handleIsConnected(command);
+        return handleIsConnected(trimmedCmd);
     } else if (cmdWord == "printShortestEdges") {
-        return handlePrintShortestEdges(command);
+        return handlePrintShortestEdges(trimmedCmd);
+    } else if (cmdWord == "printStudentZone") {
+        return handlePrintStudentZone(trimmedCmd);
+    } else if (cmdWord == "verifySchedule") {
+        return handleVerifySchedule(trimmedCmd);
     }
 
     cout << "unsuccessful" << endl;
@@ -281,7 +411,6 @@ bool CampusCompass::handleInsert(const string &line) {
     size_t firstQuote = line.find('"');
     if (firstQuote == string::npos) {
         cout << "unsuccessful" << endl;
-        return false;
     }
     size_t secondQuote = line.find('"', firstQuote + 1);
     if (secondQuote == string::npos) {
@@ -300,42 +429,43 @@ bool CampusCompass::handleInsert(const string &line) {
     int n = 0;
 
     if (!(ss >> ufid >> residence >> n)) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful\n";
         return false;
     }
 
     vector<string> codes;
     string code;
     while (ss >> code) {
-        codes.push_back(code);
+        code = trim(code);
+        if (!code.empty()) {
+            codes.push_back(code);
+        }
     }
-
     //checks
-    if (n != static_cast<int>(codes.size())) {
-        cout << "unsuccessful" << endl;
+    if (n < 1 || n > 6) {
+        cout << "unsuccessful\n";
         return false;
     }
-
-    if (n < 1 || n > 6) {
+    if (n != static_cast<int>(codes.size())) {
         cout << "unsuccessful" << endl;
         return false;
     }
     //make sure its valid
     if (!isValidName(name) || !isValidUFID(ufid)) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful\n" ;
         return false;
     }
     if (studentsById.count(ufid)) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful\n" ;
         return false;
     }
     for (const string &c: codes) {
         if (!isValidClassCode(c)) {
-            cout << "unsuccessful" << endl;
+            cout << "unsuccessful\n" ;
             return false;
         }
         if (!classesByCode.count(c)) {
-            cout << "unsuccessful" << endl;
+            cout << "unsuccessful\n";
             return false;
         }
     }
@@ -360,8 +490,9 @@ bool CampusCompass::handleRemove(const string &line) {
         cout << "unsuccessful" << endl;
         return false;
     }
+
     if (!isValidUFID(ufid)) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful" << endl ;
         return false;
     }
     auto it = studentsById.find(ufid);
@@ -413,7 +544,7 @@ bool CampusCompass::handleRemoveClass(const string &line) {
             }
         }
     }
-    for (const string &ufid :toErase) {
+    for (const string &ufid : toErase) {
         studentsById.erase(ufid);
     }
     cout << affectedStudents << endl;
@@ -433,12 +564,7 @@ bool CampusCompass::handleDropClass(const string &line) {
     if (!isValidUFID(ufid) || !isValidClassCode(code)) {
         cout << "unsuccessful" << endl;
         return false;
-    }//class must exist in the classes.csv
-    if (!classesByCode.count(code)) {
-        cout << "unsuccessful" << endl;
-        return false;
     }
-
     //student must exist
     auto it = studentsById.find(ufid);
     if (it == studentsById.end()) {
@@ -481,6 +607,10 @@ bool CampusCompass::handleReplaceClass(const string &line) {
         return false;
     }
 
+    ufid = trim(ufid);
+    oldCode = trim(oldCode);
+    newCode = trim(newCode);
+
     //validate uf id and class code format
     if (!isValidUFID(ufid) || !isValidClassCode(oldCode) || !isValidClassCode(newCode)) {
         cout << "unsuccessful" << endl;
@@ -513,7 +643,7 @@ bool CampusCompass::handleReplaceClass(const string &line) {
         return false;
     }
     * posOld = newCode;
-    cout << "successful" << endl;
+    cout << "successful"<< endl;
     return true;
 }
 
@@ -541,6 +671,7 @@ bool CampusCompass::handleToggleEdgesClosure(const string &line) {
     for (int i = 0; i < 2* N; i += 2) {
         int u = ids[i];
         int v = ids[i + 1];
+
         graph.toggleEdge(u,v);
     }
     cout << "successful" << endl;
@@ -599,7 +730,7 @@ bool CampusCompass::handlePrintShortestEdges(const string &line) {
     }
     auto it = studentsById.find(ufid);
     if (it == studentsById.end()) {
-        cout << "unsuccessful" << endl;
+        cout << "unsuccessful\n" ;
         return false;
     }
     Student &s = it->second;
@@ -623,8 +754,6 @@ bool CampusCompass::handlePrintShortestEdges(const string &line) {
         auto dIt = dist.find(loc);
         if (dIt != dist.end() && dIt->second != INF) {
             time = dIt->second;
-        } else {
-            time = -1;
         }
         results.push_back({code, time});
     }
@@ -632,7 +761,152 @@ bool CampusCompass::handlePrintShortestEdges(const string &line) {
 
     cout << "Name: " << s.name << '\n';
     for (const auto &p : results) {
-        cout << p.first << " | Total Time: " << p.second << '\n';
+        cout << p.first << " | Total Time: " << p.second << endl;
     }
     return true;
 }
+
+bool CampusCompass::handlePrintStudentZone(const string &line) {
+    string cmd, ufid;
+    stringstream ss(line);
+    ss >> cmd >> ufid;
+
+    if (!ss || ufid.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (!isValidUFID(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    Student &s = it->second;
+    int startLoc = s.residenceLocation;
+    unordered_map<int, int> parent;
+    unordered_map<int, int> dist = graph.dijkstraWithParents(startLoc, parent);
+
+    unordered_set<int> zoneNodes;
+    zoneNodes.insert(startLoc);
+
+    for (const string &code : s.classCodes) {
+        auto classIt = classesByCode.find(code);
+        if (classIt == classesByCode.end()) {
+            continue;
+        }
+        int dest = classIt->second.locationId;
+
+        auto dIt = dist.find(dest);
+        if (dIt == dist.end() || dIt->second == INF) {
+            continue;
+        }
+        int cur = dest;
+        while (cur != -1 && cur != startLoc) {
+            zoneNodes.insert(cur);
+            auto pIt = parent.find(cur);
+            if (pIt == parent.end()) {
+                break;
+            }
+            cur = pIt->second;
+        }
+        zoneNodes.insert(startLoc);
+    }
+    if (zoneNodes.size() < 2) {
+        cout << "Student Zone Cost For " << s.name << ": 0" << endl;
+        return true;
+    }
+
+    int cost = graph.mstCostOnNodes(zoneNodes);
+    cout << "Student Zone Cost For " << s.name << ": " << cost << endl;
+    return true;
+}
+
+bool CampusCompass::handleVerifySchedule(const string &line) {
+    string cmd, ufid;
+    stringstream ss(line);
+    ss >> cmd >> ufid;
+    if (!ss || ufid.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (!isValidUFID(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    Student &s = it->second;
+
+    if (s.classCodes.size() < 2) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    struct ClassSlot {
+        string code;
+        int locationId;
+        int start;
+        int end;
+    };
+    vector<ClassSlot> slots;
+    slots.reserve(s.classCodes.size());
+    for (const string &code : s.classCodes) {
+        auto ci = classesByCode.find(code);
+        if (ci == classesByCode.end()) {
+            continue;
+        }
+        ClassSlot slot;
+        slot.code = code;
+        slot.locationId = ci->second.locationId;
+        slot.start = ci->second.startMinutes;
+        slot.end = ci->second.endMinutes;
+
+        slots.push_back(slot);
+    }
+//after this they have less than 2 valid classes its not real
+    if (slots.size() < 2) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    sort(slots.begin(), slots.end(),
+        [](const ClassSlot &a, const ClassSlot &b) {
+            return a.start < b.start;
+        });
+    cout << "Schedule Check for " << s.name << endl;
+
+    for (size_t i = 0; i + 1 < slots.size(); i++) {
+        const ClassSlot &c1 = slots[i];
+        const ClassSlot &c2 = slots[i + 1];
+
+        int gap = c2.start - c1.end;
+
+        string result;
+        if (gap < 0) {
+            result = "Overlapping of times";
+        } else {
+            unordered_map<int, int> dist = graph.dijkstra(c1.locationId);
+            int travel = -1;
+
+            auto dIt = dist.find(c2.locationId);
+            if (dIt != dist.end() && dIt->second != INF) {
+                travel = dIt->second;
+            }
+            if (travel == -1 || travel > gap) {
+                result = "Can't make it";
+            } else {
+                result = "Can make it";
+            }
+        }
+        cout << c1.code << " - " << c2.code << " \"" << result << "\"" << endl;
+    }
+    return true;
+}
+

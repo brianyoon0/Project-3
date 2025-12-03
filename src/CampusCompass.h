@@ -34,6 +34,9 @@ public:
     //dijkstra shortest path from src, using only open edges
     unordered_map<int, int> dijkstra(int src) const;
 
+    unordered_map<int, int> dijkstraWithParents(int src, unordered_map<int, int> &parent) const;
+
+    int mstCostOnNodes(const unordered_set<int> &nodes)const;
 private:
     unordered_map<int, vector<Edge>> adj;
 };
@@ -65,6 +68,8 @@ private:
     bool handleCheckEdgeStatus(const string &line);
     bool handleIsConnected(const string &line);
     bool handlePrintShortestEdges(const string &line);
+    bool handlePrintStudentZone(const string &line);
+    bool handleVerifySchedule(const string &line);
 public:
     // Think about what helper functions you will need in the algorithm
     CampusCompass(); // constructor
