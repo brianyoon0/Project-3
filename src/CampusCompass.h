@@ -51,11 +51,15 @@ private:
     bool loadEdges(const string &edges_filepath);
     bool loadClasses(const string &classes_filepath);
     int parseTimetoMinutes(const string &timeStr) const;
-
+//validation
     bool isValidUFID(const string &id) const;
     bool isValidName(const string &name) const;
     bool isValidClassCode(const string &code) const;
+    //handlers
     bool handleInsert(const string &line);
+    bool handleRemove(const string &line);
+    bool handleRemoveClass(const string &line);
+
 public:
     // Think about what helper functions you will need in the algorithm
     CampusCompass(); // constructor

@@ -238,8 +238,172 @@ bool CampusCompass::isValidClassCode(const string &code) const {
 
 
 bool CampusCompass::ParseCommand(const string &command) {
-    // do whatever regex you need to parse validity
-    // hint: return a boolean for validation when testing. For example:
-    (void)command;
+    if (command.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    string cmdWord;
+    stringstream ss(command);
+    ss >> cmdWord;
+
+    if (!ss) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (cmdWord == "insert") {
+        return handleInsert(command);
+    } else if (cmdWord == "remove") {
+        return handleRemove(command);
+    } else if (cmdWord == "removeClass") {
+        return handleRemoveClass(command);
+    }
+
+    cout << "unsuccessful" << endl;
     return false;
+}
+
+bool CampusCompass::handleInsert(const string &line) {
+
+    //find the name
+    size_t firstQuote = line.find('"');
+    if (firstQuote == string::npos) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    size_t secondQuote = line.find('"', firstQuote + 1);
+    if (secondQuote == string::npos) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    string name = line.substr(firstQuote + 1, secondQuote - firstQuote - 1);
+
+    //parse the rest
+    string rest = line.substr(secondQuote + 1);
+    stringstream ss(rest);
+
+    string ufid;
+    int residence = 0;
+    int n = 0;
+
+    if (!(ss >> ufid >> residence >> n)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    vector<string> codes;
+    string code;
+    while (ss >> code) {
+        codes.push_back(code);
+    }
+
+    //checks
+    if (n != static_cast<int>(codes.size())) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    if (n < 1 || n > 6) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    //make sure its valid
+    if (!isValidName(name) || !isValidUFID(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (studentByID.count(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    for (const string &c: codes) {
+        if (!isValidClassCode(c)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+        if (!classByCode.count(c)) {
+            cout << "unsuccessful" << endl;
+            return false;
+        }
+    }
+
+    //if everything is valid create and store the students data
+    Student s;
+    s.name = name;
+    s.ufid = ufid;
+    s.residenceLocation = residence;
+    s.classCodes = codes;
+    studentByID[ufid] = s;
+    cout << "successful" << endl;
+    return true;
+}
+
+bool CampusCompass::handleRemove(const string &line) {
+    string cmd, ufid;
+    stringstream ss(line);
+    ss >> cmd >> ufid;
+
+    if (!ss || ufid.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (!isValidUFID(ufid)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    auto it = studentByID.find(ufid);
+    if (it == studentByID.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    studentByID.erase(it);
+    cout << "successful" << endl;
+    return true;
+}
+
+bool CampusCompass::handleRemoveClass(const string &line) {
+    string cmd, code;
+    stringstream ss(line);
+    ss >> cmd >> code;
+
+    if (!ss || code.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (!isValidClassCode(code)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    int affectedStudents = 0;
+    vector<string> toErase;
+
+    for (auto &entry : studentByID) {
+        string ufid = entry.first;
+        Student &s = entry.second;
+
+        bool hadThisClass = false;
+        vector<string> newList;
+        newList.reserve(s.classCodes.size());
+
+        for (const string &c : s.classCodes) {
+            if (c == code) {
+                hadThisClass = true;
+            } else {
+                newList.push_back(c);
+            }
+        }
+        if (hadThisClass) {
+            affectedStudents++;
+            s.classCodes.swap(newList);
+            if (s.classCodes.empty()) {
+                toErase.push_back(ufid);
+            }
+        }
+    }
+    for (const string &ufid :toErase) {
+        studentByID.erase(ufid);
+    }
+    cout << affectedStudents << endl;
+    return true;
 }
