@@ -19,7 +19,7 @@ struct ClassInfo {
 
 struct Student {
     string name;
-    string ufidl;
+    string ufid;
     int residenceLocation;
     vector<string> classCodes;
 };
@@ -31,6 +31,7 @@ public:
     string getEdgeStatus(int u, int v) const;
     bool isConnected(int start, int goal) const;
 
+    //dijkstra shortest path from src, using only open edges
     unordered_map<int, int> dijkstra(int src) const;
 
 private:
@@ -41,13 +42,20 @@ private:
 class CampusCompass {
 private:
     Graph graph;
+    //class code into info
     unordered_map<string, ClassInfo> classByCode;
+    //UFID into student
     unordered_map<string, Student> studentByID;
+
     //CSV loading helpers
     bool loadEdges(const string &edges_filepath);
     bool loadClasses(const string &classes_filepath);
-    int parseTimetoMinutes(const string &timesStr) const;
+    int parseTimetoMinutes(const string &timeStr) const;
 
+    bool isValidUFID(const string &id) const;
+    bool isValidName(const string &name) const;
+    bool isValidClassCode(const string &code) const;
+    bool handleInsert(const string &line);
 public:
     // Think about what helper functions you will need in the algorithm
     CampusCompass(); // constructor

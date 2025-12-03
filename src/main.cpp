@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <string>
 #include "CampusCompass.h"
 
 using namespace std;
@@ -22,4 +22,5 @@ int main() {
         // parse your commands however you see fit
         compass.ParseCommand(command);
     }
+    return 0;
 }
