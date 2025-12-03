@@ -41,7 +41,7 @@ void Graph::toggleEdge(int u, int v) {
 string Graph::getEdgeStatus(int u, int v) const {
     auto it = adj.find(u);
     if (it == adj.end()) {
-        return "Does not exist";
+        return "DNE";
     }
 
     for (const auto &e : it->second) {
@@ -193,11 +193,11 @@ bool CampusCompass::loadClasses(const string &classes_filepath) {
         if (!getline(ss, sEnd, ',')) continue;
 
         ClassInfo info;
-        info.locationID = stoi(sLoc);
+        info.locationId = stoi(sLoc);
         info.startMinutes = parseTimetoMinutes(sStart);
         info.endMinutes = parseTimetoMinutes(sEnd);
 
-        classByCode[code] = info;
+        classesByCode[code] = info;
     }
     return true;
 }
@@ -257,6 +257,10 @@ bool CampusCompass::ParseCommand(const string &command) {
         return handleRemove(command);
     } else if (cmdWord == "removeClass") {
         return handleRemoveClass(command);
+    } else if (cmdWord == "dropClass") {
+        return handleDropClass(command);
+    } else if (cmdWord == "replaceClass") {
+        return handleReplaceClass(command);
     }
 
     cout << "unsuccessful" << endl;
@@ -313,7 +317,7 @@ bool CampusCompass::handleInsert(const string &line) {
         cout << "unsuccessful" << endl;
         return false;
     }
-    if (studentByID.count(ufid)) {
+    if (studentsById.count(ufid)) {
         cout << "unsuccessful" << endl;
         return false;
     }
@@ -322,7 +326,7 @@ bool CampusCompass::handleInsert(const string &line) {
             cout << "unsuccessful" << endl;
             return false;
         }
-        if (!classByCode.count(c)) {
+        if (!classesByCode.count(c)) {
             cout << "unsuccessful" << endl;
             return false;
         }
@@ -334,7 +338,7 @@ bool CampusCompass::handleInsert(const string &line) {
     s.ufid = ufid;
     s.residenceLocation = residence;
     s.classCodes = codes;
-    studentByID[ufid] = s;
+    studentsById[ufid] = s;
     cout << "successful" << endl;
     return true;
 }
@@ -352,12 +356,12 @@ bool CampusCompass::handleRemove(const string &line) {
         cout << "unsuccessful" << endl;
         return false;
     }
-    auto it = studentByID.find(ufid);
-    if (it == studentByID.end()) {
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
         cout << "unsuccessful" << endl;
         return false;
     }
-    studentByID.erase(it);
+    studentsById.erase(it);
     cout << "successful" << endl;
     return true;
 }
@@ -378,7 +382,7 @@ bool CampusCompass::handleRemoveClass(const string &line) {
     int affectedStudents = 0;
     vector<string> toErase;
 
-    for (auto &entry : studentByID) {
+    for (auto &entry : studentsById) {
         string ufid = entry.first;
         Student &s = entry.second;
 
@@ -402,8 +406,105 @@ bool CampusCompass::handleRemoveClass(const string &line) {
         }
     }
     for (const string &ufid :toErase) {
-        studentByID.erase(ufid);
+        studentsById.erase(ufid);
     }
     cout << affectedStudents << endl;
+    return true;
+}
+
+bool CampusCompass::handleDropClass(const string &line) {
+    string cmd, ufid, code;
+    stringstream ss(line);
+    ss >> cmd >> ufid >> code;
+//parsing check
+    if (!ss || ufid.empty() || code.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    //validate ufid format and the class format
+    if (!isValidUFID(ufid) || !isValidClassCode(code)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }//class must exist in the classes.csv
+    if (!classesByCode.count(code)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    //student must exist
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    Student &s = it->second;
+//students must actually have the class
+    bool found = false;
+    vector<string> newList;
+    newList.reserve(s.classCodes.size());
+    for (const string &c : s.classCodes) {
+        if (c == code) {
+            found = true;
+        } else {
+            newList.push_back(c);
+        }
+    }
+    if (!found) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    s.classCodes.swap(newList);
+
+    if (s.classCodes.empty()) {
+        studentsById.erase(it);
+    }
+    cout << "successful" << endl;
+    return true;
+}
+
+bool CampusCompass::handleReplaceClass(const string &line) {
+    string cmd, ufid, oldCode, newCode;
+    stringstream ss(line);
+    ss >> cmd >> ufid >> oldCode >> newCode;
+
+    if (!ss || ufid.empty() || oldCode.empty() || newCode.empty()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    //validate uf id and class code format
+    if (!isValidUFID(ufid) || !isValidClassCode(oldCode) || !isValidClassCode(newCode)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    //student must exist
+    auto it = studentsById.find(ufid);
+    if (it == studentsById.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    Student &s = it->second;
+
+    //student must have the old code
+    auto posOld = find(s.classCodes.begin(), s.classCodes.end(), oldCode);
+    if (posOld == s.classCodes.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    if (find(s.classCodes.begin(), s.classCodes.end(), newCode) != s.classCodes.end()) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+
+    //newCode must exist in the classes.csv now
+    if (!classesByCode.count(newCode)) {
+        cout << "unsuccessful" << endl;
+        return false;
+    }
+    * posOld = newCode;
+    cout << "successful" << endl;
     return true;
 }

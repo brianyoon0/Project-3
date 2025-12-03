@@ -12,7 +12,7 @@ struct Edge {
 };
 
 struct ClassInfo {
-    int locationID;
+    int locationId;
     int startMinutes;
     int endMinutes;
 };
@@ -43,9 +43,9 @@ class CampusCompass {
 private:
     Graph graph;
     //class code into info
-    unordered_map<string, ClassInfo> classByCode;
+    unordered_map<string, ClassInfo> classesByCode;
     //UFID into student
-    unordered_map<string, Student> studentByID;
+    unordered_map<string, Student> studentsById;
 
     //CSV loading helpers
     bool loadEdges(const string &edges_filepath);
@@ -59,7 +59,8 @@ private:
     bool handleInsert(const string &line);
     bool handleRemove(const string &line);
     bool handleRemoveClass(const string &line);
-
+    bool handleDropClass(const string &line);
+    bool handleReplaceClass(const string &line);
 public:
     // Think about what helper functions you will need in the algorithm
     CampusCompass(); // constructor
