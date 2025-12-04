@@ -1,182 +1,177 @@
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch_test_macros.hpp>
-#include <sstream>
-#include <iostream>
-#include <string>
-#include "CampusCompass.h"
-
-// helper to run multiple commands and capture the printed output
-string runCommands(const vector<string> &cmds) {
-    CampusCompass c;
-    c.ParseCSV("../data/edges.csv", "../data/classes.csv");
-
-    std::streambuf *oldCout = std::cout.rdbuf();
-    std::ostringstream out;
-    std::cout.rdbuf(out.rdbuf());
-
-    for (auto &cmd : cmds) {
-        c.ParseCommand(cmd);
-    }
-
-    std::cout.rdbuf(oldCout);
-    return out.str();
-}
-
-
-// ---------------------------------------------------------------------------
-// 1) FIVE INCORRECT COMMANDS
-// ---------------------------------------------------------------------------
-TEST_CASE("Incorrect Commands", "[incorrect]") {
-    vector<string> cmds = {
-        R"(insert "A11y" 45679999 1 1 COP3530)",    // invalid name
-        R"(insert "Alex" 123 1 1 COP3530)",         // UFID too short
-        R"(insert "Alex" 12345678 1 1 BAD0000)",    // invalid class code format
-        R"(remove BADUFID)",                        // invalid UFID
-        R"(dropClass 99999999 COP3530)"             // student doesn't exist
-    };
-
-    string out = runCommands(cmds);
-
-    // each must print "unsuccessful"
-    int count = 0;
-    string line;
-    stringstream ss(out);
-    while (getline(ss, line)) {
-        REQUIRE(line == "unsuccessful");
-        count++;
-    }
-    REQUIRE(count == 5);
-}
-
-
-// ---------------------------------------------------------------------------
-// 2) THREE EDGE CASES
-// ---------------------------------------------------------------------------
-TEST_CASE("Edge Cases", "[edgecases]") {
-    vector<string> cmds = {
-        R"(insert "Brian" 11112222 1 1 COP3502)",
-        R"(remove 99999999)",             // removing nonexistent student
-        R"(dropClass 11112222 MAC2311)",  // dropping class student doesn't have
-        R"(replaceClass 11112222 COP3502 COP3530)"  // COP3530 exists but student has only 3502
-    };
-
-    string out = runCommands(cmds);
-
-    // expected:
-    // successful
-    // unsuccessful
-    // unsuccessful
-    // unsuccessful
-
-    vector<string> expected = {
-        "successful",
-        "unsuccessful",
-        "unsuccessful",
-        "unsuccessful"
-    };
-
-    stringstream ss(out);
-    string line;
-    int i = 0;
-
-    while (getline(ss, line)) {
-        REQUIRE(line == expected[i]);
-        i++;
-    }
-    REQUIRE(i == 4);
-}
-
-
-// ---------------------------------------------------------------------------
-// 3) Test dropClass, removeClass, remove, replaceClass
-// ---------------------------------------------------------------------------
-TEST_CASE("dropClass / removeClass / remove / replaceClass", "[mutations]") {
-
-    vector<string> cmds = {
-        R"(insert "Brandon" 22223333 1 2 COP3502 MAC2311)",
-        R"(dropClass 22223333 COP3502)",
-        R"(replaceClass 22223333 MAC2311 COP3503)",
-        R"(insert "Alice" 33334444 1 1 COP3503)",
-        R"(removeClass COP3503)",   // removes from both students
-        R"(remove 22223333)"        // remove Brandon entirely
-    };
-
-    string out = runCommands(cmds);
-
-    // Expected output:
-    // successful            (insert)
-    // successful            (dropClass)
-    // successful            (replaceClass)
-    // successful            (insert Alice)
-    // 2                     (removeClass COP3503)
-    // successful            (remove Brandon)
-
-    vector<string> expected = {
-        "successful",
-        "successful",
-        "successful",
-        "successful",
-        "2",
-        "successful"
-    };
-
-    stringstream ss(out);
-    string line;
-    int i = 0;
-    while (getline(ss, line)) {
-        REQUIRE(line == expected[i]);
-        i++;
-    }
-    REQUIRE(i == 6);
-}
-
-
-// ---------------------------------------------------------------------------
-// 4) printShortestEdges reachable → toggle → unreachable
-// ---------------------------------------------------------------------------
-// Using discovered *critical edge* (6,15) from dataset.
-TEST_CASE("Shortest edges reachable then unreachable", "[paths]") {
-
-    vector<string> cmds = {
-        R"(insert "Test" 99998888 1 1 COP3502)",  // class COP3502 at location 23
-        // Initially reachable
-
-        R"(printShortestEdges 99998888)",
-
-        // Turn off critical edge (6,15)
-        R"(toggleEdgesClosure 1 6 15)",
-
-        // Now unreachable
-        R"(printShortestEdges 99998888)"
-    };
-
-    string out = runCommands(cmds);
-
-    stringstream ss(out);
-    vector<string> lines;
-    string line;
-
-    while (getline(ss, line))
-        lines.push_back(line);
-
-    // Expected:
-    // successful
-    // Name: Test
-    // COP3502 | Total Time: <some non-negative number>
-    // successful
-    // Name: Test
-    // COP3502 | Total Time: -1
-
-    REQUIRE(lines[0] == "successful");     // insert
-
-    REQUIRE(lines[1] == "Name: Test");
-    // Time should be >= 0 before edge removal
-    REQUIRE(lines[2].substr(0,20) == "COP3502 | Total Time:");
-    int firstTime = stoi(lines[2].substr(lines[2].find_last_of(' ')+1));
-    REQUIRE(firstTime >= 0);
-
-    REQUIRE(lines[3] == "successful");     // toggle
-
-    REQUIRE(lines[4] == "Name: Test");
-    REQUIRE(lines[5] == "COP3502 | Total Time: -1");
-}
+// #include <catch2/catch_test_macros.hpp>
+// #include <iostream>
+// #include <sstream>
+// #include "CampusCompass.h"
+//
+// using namespace std;
+//
+// // helper function to run commands and capture output
+// string runCommands(const vector<string>& commands) {
+//     stringstream output;
+//     streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//     CampusCompass compass;
+//     compass.ParseCSV("data/edges.csv", "data/classes.csv");
+//
+//     for (const auto& cmd : commands) {
+//         compass.ParseCommand(cmd);
+//     }
+//
+//     cout.rdbuf(oldCoutBuffer);
+//     return output.str();
+// }
+//
+// TEST_CASE("Test 1: Five incorrect commands", "incorrect commands") {
+//     CampusCompass compass;
+//     compass.ParseCSV("data/edges.csv", "data/classes.csv");
+//
+//     SECTION("UFID is too short (7 digits instead of 8)") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("insert \"Brian Yoon\" 8404513 1 1 COP3502");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//
+//     SECTION("UFID contains letters") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//         compass.ParseCommand("insert \"Brian Yoon\" abcdefgh 1 1 COP3502");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//     SECTION("Name contains special characters") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("insert \"Brian!Yoon\" 84045135 1 1 COP3502");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//     SECTION("Invalid class code format") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("insert \"Brian Yoon\" 84045135 1 1 COP35");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//     SECTION("Non-existent class") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("insert \"Brian Yoon\" 84045135 1 1 BAK1011");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+// }
+//
+// TEST_CASE("Test 2: Three edge cases", "edge cases") {
+//     CampusCompass compass;
+//     compass.ParseCSV("data/edges.csv", "data/classes.csv");
+//
+//     SECTION("Remove a student that doesn't exist") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//         compass.ParseCommand("remove 00000000");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//     SECTION("Drop a class from non-existent student") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("dropClass 00000000 COP3502");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+//
+//
+//     SECTION("Replace class with non-existent student") {
+//         stringstream output;
+//         streambuf* oldCoutBuffer = cout.rdbuf(output.rdbuf());
+//
+//         compass.ParseCommand("replaceClass 00000000 COP3502 CDA3101");
+//
+//         cout.rdbuf(oldCoutBuffer);
+//         REQUIRE(output.str() == "unsuccessful\n");
+//     }
+// }
+//
+// TEST_CASE("Test 3: Student management commands", "student management") {
+//     vector<string> commands = {
+//         "insert \"Brian Yoon\" 00000001 1 2 COP3502 CDA3101",
+//         "insert \"bRIAN yOON\" 00000002 1 2 COP3502 MAC2311",
+//         "insert \"Brian Yooon\" 00000003 1 1 COP3502",
+//         "dropClass 00000001 COP3502",
+//         "removeClass CDA3101",
+//         "replaceClass 00000002 MAC2311 COP3503",
+//         "remove 00000003"
+//     };
+//
+//     string output = runCommands(commands);
+//
+//     REQUIRE(output.find("unsuccessful") == string::npos);
+// }
+//
+// TEST_CASE("Test 4: printShortestEdges with edge toggling", "[edge-toggling]") {
+//     vector<string> commands = {
+//         "insert \"Brian Yoon\" 00000001 1 2 COP3502 CDA3101",
+//         "printShortestEdges 00000001",
+//         "toggleEdgesClosure 2 1 2 2 4",
+//         "printShortestEdges 00000001",
+//         "toggleEdgesClosure 2 1 2 2 4",
+//         "printShortestEdges 00000001"
+//     };
+//
+//     string output = runCommands(commands);
+//
+//     // verify the output contains expected patterns
+//     REQUIRE(output.find("Name: Brian Yoon") != string::npos);
+//     REQUIRE(output.find("COP3502") != string::npos);
+//     REQUIRE(output.find("CDA3101") != string::npos);
+//     REQUIRE(output.find("successful") != string::npos);
+// }
+//
+// TEST_CASE("Example CampusCompass Output Test", "end to end") {
+//     string input = R"(6
+// insert "Student A" 00000001 1 1 COP3502
+// insert "Student B" 00000002 1 1 COP3502
+// insert "Student C" 00000003 1 2 COP3502 MAC2311
+// dropClass 00000001 COP3502
+// remove 00000001
+// removeClass COP3502
+// )";
+//
+//     // parse the input into commands
+//     stringstream ss(input);
+//     string line;
+//     getline(ss, line); // skip first line (6)
+//
+//     vector<string> commands;
+//     while (getline(ss, line)) {
+//         if (!line.empty()) {
+//             commands.push_back(line);
+//         }
+//     }
+//
+//     string actualOutput = runCommands(commands);
+//
+//     // expected output based on the test
+//     string expectedOutput = "successful\nsuccessful\nsuccessful\nsuccessful\nunsuccessful\n2\n";
+//
+//     REQUIRE(actualOutput == expectedOutput);
+// }

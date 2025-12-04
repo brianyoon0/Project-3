@@ -30,6 +30,7 @@ public:
     void toggleEdge(int u, int v);
     string getEdgeStatus(int u, int v) const;
     bool isConnected(int start, int goal) const;
+    bool hasNode(int node) const {return adj.count(node) > 0;}
 
     //dijkstra shortest path from src, using only open edges
     unordered_map<int, int> dijkstra(int src) const;
